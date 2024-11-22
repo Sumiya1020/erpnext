@@ -479,6 +479,44 @@ class SalesInvoice(SellingController):
 			update_company_current_month_sales(self.company)
 			self.update_project()
 		update_linked_doc(self.doctype, self.name, self.inter_company_invoice_reference)
+  
+		if self.custom_referrer_phone_number:
+			# Fetch the referrer based on the phone number
+			referrer = frappe.db.get_value("Customer", {"mobile_no": self.custom_referrer_phone_number},
+										   "name")
+
+			if referrer:
+				# Calculate points and create Loyalty Point Entry
+				points_earned = self.grand_total * 0.025
+
+				referrer_customer = frappe.get_doc("Customer", referrer)
+
+				current_amount = flt(self.grand_total) - cint(self.loyalty_amount)
+				lp_details = get_loyalty_program_details_with_points(
+					referrer_customer,
+					company=self.company,
+					current_transaction_amount=current_amount,
+					loyalty_program=referrer_customer.loyalty_program,
+					expiry_date=self.posting_date,
+					include_expired_entry=True,
+				)
+
+				loyalty_point_entry = frappe.get_doc({
+					"doctype": "Loyalty Point Entry",
+					"company": self.company,
+					"loyalty_program": lp_details.name,
+					"loyalty_program_tier": lp_details.tier_name,
+					"customer": referrer,
+					"invoice_type": self.doctype,
+					"invoice": self.name,
+					"loyalty_points": points_earned,
+					"expiry_date": add_days(self.posting_date, lp_details.expiry_duration),
+					"posting_date": self.posting_date,
+				})
+				loyalty_point_entry.insert()
+
+				frappe.msgprint(
+					f"{points_earned} loyalty points awarded to {referrer_customer.customer_name} for referring {self.customer_name}.")
 
 		# create the loyalty point ledger entry if the customer is enrolled in any loyalty program
 		if not self.is_return and not self.is_consolidated and self.loyalty_program:

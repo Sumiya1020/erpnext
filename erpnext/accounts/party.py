@@ -844,6 +844,15 @@ def get_dashboard_info(party_type, party, loyalty_program=None):
 			info["total_unpaid"] = -1 * info["total_unpaid"]
 
 		company_wise_info.append(info)
+  
+	# When customer doesn't have Sales Invoice loyalty points were not showing
+	if not companies and party_type == "Customer" and loyalty_point_details:
+		if loyalty_point_details:
+			loyalty_points = loyalty_point_details.get("LAC")
+
+		info = {}
+		info["loyalty_points"] = loyalty_points
+		company_wise_info.append(info)
 
 	return company_wise_info
 
